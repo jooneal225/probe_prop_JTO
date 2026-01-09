@@ -5,17 +5,21 @@ import json
 import h5py
 import numpy as np
 import pyqtgraph as pg
-import pyqtgraph.exporters
 import tifffile as tf
 from scipy.io import loadmat
 import configparser
-from PyQt5 import QtWidgets, uic, QtCore, QtGui, QtTest
-from PyQt5.QtWidgets import QMessageBox, QFileDialog, QApplication, QSizePolicy, QErrorMessage
+from PyQt5 import QtWidgets, uic, QtCore
+from PyQt5.QtWidgets import QFileDialog, QApplication
 
 from probe_propagation_calcs_JTO import  *
 from probe_prop_probeView_JTO_gui import probeViewWindow
 ui_path = os.path.dirname(os.path.abspath(__file__))
 config = configparser.ConfigParser()
+
+# This file contains code adapted from:
+# https://github.com/pattammattel/HXN_GUI/tree/main/Analysis/probe_prop
+# Original author: Ajith Pattammattel
+# Modifications by: Jordan O'Neal
 
 
 class ProbePropagationGUI(QtWidgets.QMainWindow):
