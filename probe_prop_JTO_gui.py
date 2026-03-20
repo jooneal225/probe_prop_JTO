@@ -45,6 +45,12 @@ class ProbePropagationGUI(QtWidgets.QMainWindow):
         self.pb_plot.clicked.connect(lambda:self.propagate_and_plot(self.probe_file))
         self.ck_pixel_size.clicked.connect(self.toggle_pixel_size)
 
+        # GPU checkbox — unchecked by default; torch imported lazily on first check
+        self._torch = None
+        self._use_gpu = False
+        self.checkBox_use_gpu.setChecked(False)
+        self.checkBox_use_gpu.stateChanged.connect(self._on_gpu_checkbox_changed)
+
         self.pb_load_probe.clicked.connect(self.load_probe)
         self.slider_for_index.valueChanged.connect(lambda:
                                                    self.update_with_slider(
@@ -74,9 +80,11 @@ class ProbePropagationGUI(QtWidgets.QMainWindow):
                 if self.probe_to_view is not None:
                     print(self.probe_to_view.shape)
                     print(self.dsb_energy.value(), self.prop_distance, self.pixel_size, self.pixel_size)
+                    _prop = propagate_gpu if self._use_gpu else propagate
+                    _kw = dict(torch=self._torch) if self._use_gpu else {}
                     for k in range(self.probe_to_view.shape[0]):
                         for i in range(self.probe_to_view.shape[1]):
-                            self.probe_to_view[k,i] = propagate(self.probe_to_view[k,i], self.dsb_energy.value(), self.prop_distance, 1e6*self.pixel_size, 1e6*self.pixel_size)
+                            self.probe_to_view[k,i] = _prop(self.probe_to_view[k,i], self.dsb_energy.value(), self.prop_distance, 1e6*self.pixel_size, 1e6*self.pixel_size, **_kw)
 
                     if self.probeViewWindow is not None:
                         self.probeViewWindow.close()
@@ -100,6 +108,21 @@ class ProbePropagationGUI(QtWidgets.QMainWindow):
 
         return energy,det_dist,det_pixel_size
 
+
+    def _on_gpu_checkbox_changed(self, state):
+        if self.checkBox_use_gpu.isChecked():
+            if self._torch is None:
+                try:
+                    import torch
+                    self._torch = torch
+                except ImportError:
+                    self._use_gpu = False
+                    self.checkBox_use_gpu.setText("pytorch\nnot found")
+                    self.checkBox_use_gpu.setStyleSheet("background-color: red;")
+                    return
+            self._use_gpu = True
+        else:
+            self._use_gpu = False
 
     def toggle_pixel_size(self):
         if self.ck_pixel_size.isChecked():
@@ -254,16 +277,19 @@ class ProbePropagationGUI(QtWidgets.QMainWindow):
                                     ny)
             self.pixel_size = nx_size_m
 
+        _prop_fn = propagate_probe_gpu if self._use_gpu else propagate_probe
+        _extra = dict(torch=self._torch) if self._use_gpu else {}
         self.prb_array, \
         self.sigma, \
         self.deviation, \
         self.xfit, \
-        self.yfit = propagate_probe(self.probe,
-                                    self.dsb_energy.value(),
-                                    nx_size_m, ny_size_m,
-                                    start_um = self.dsb_prop_start.value(),
-                                    end_um = self.dsb_prop_end.value(),
-                                    step_size_um = self.dsb_prop_size.value())
+        self.yfit = _prop_fn(self.probe,
+                             self.dsb_energy.value(),
+                             nx_size_m, ny_size_m,
+                             start_um=self.dsb_prop_start.value(),
+                             end_um=self.dsb_prop_end.value(),
+                             step_size_um=self.dsb_prop_size.value(),
+                             **_extra)
 
         #print(self.pixel_size)
         self.dsb_calc_pixel_size.setValue(self.pixel_size*1.e9)
